@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Daily Store Operations</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-blue-50 font-sans">
+
+  <!-- Logo at the top -->
+  <div class="flex justify-center my-4">
+    <img src="{{ url_for('static', filename='Decathlon_Logo.png') }}" alt="Decathlon Logo" , width="400">
+  </div>
+
+  <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-6">
+    <h1 class="text-2xl font-bold text-blue-900 mb-4">Daily Store Operations</h1>
+
+    <form method="POST" enctype="multipart/form-data" class="space-y-6">
+      <!-- Team Members -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block font-medium text-blue-700 mb-1">Opening Team Member:</label>
+          <input type="text" name="opening_member" placeholder="Name" value="" class="w-full border border-blue-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+
+        <div>
+          <label class="block font-medium text-blue-700 mb-1">Closing Team Member:</label>
+          <input type="text" name="closing_member" placeholder="Name" value="" class="w-full border border-blue-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+      </div>
+
+      <!-- TASKS -->
+        {% for task in tasks %}
+        <div class="p-4 bg-blue-50 rounded-lg mb-4">
+        <!-- Question -->
+        <label class="block font-semibold text-blue-800 mb-1">{{ task.task }}</label>
+        
+        <!-- Completed checkbox -->
+        <label class="inline-flex items-center mb-2">
+            <input type="checkbox" name="tasks" value="{{ task.id }}" class="mr-2">
+            <span class="text-blue-700">Completed</span>
+        </label>
+        
+        <!-- Input for pending/extra info -->
+        {% if task.id == 1 %}
+            <label class="block text-blue-700 text-sm mb-1">If not, number of boxes pending:</label>
+            <input type="number" name="delivery_boxes" value="0" class="w-32 border border-blue-300 rounded px-2 py-1">
+        {% elif task.id == 2 %}
+            <label class="block text-blue-700 text-sm mb-1">If not, percentage of store clean:</label>
+            <input type="number" name="clean_percentage" value="100" min="0" max="100" class="w-32 border border-blue-300 rounded px-2 py-1">
+        {% elif task.id == 3 %}
+            <label class="block text-blue-700 text-sm mb-1">If not, number of fire exits not clear:</label>
+            <input type="number" name="fire_exits" value="0" min="0" max="2" class="w-32 border border-blue-300 rounded px-2 py-1">
+        {% elif task.id == 4 %}
+            <label class="block text-blue-700 text-sm mb-1">If not, percentage of labels displayed:</label>
+            <input type="number" name="label_percentage" value="100" min="0" max="100" class="w-32 border border-blue-300 rounded px-2 py-1">
+        {% elif task.id == 8 %}
+            <label class="block text-blue-700 text-sm mb-1">If not, number of stock controls pending:</label>
+            <input type="number" name="stock_count" value="0" class="w-32 border border-blue-300 rounded px-2 py-1">
+        {% elif task.id == 9 %}
+            <label class="block text-blue-700 text-sm mb-1">If not, freshness (0-10):</label>
+            <input type="number" step="0.1" name="freshness" value="10" min="0" max="10" class="w-32 border border-blue-300 rounded px-2 py-1">
+        {% endif %}
+        </div>
+        {% endfor %}
+
+      <!-- Proud Area Upload -->
+      <div class="p-4 bg-green-50 rounded-lg mb-4">
+        <label class="block font-semibold text-green-800 mb-1">Upload images of the sections you are proud of:</label>
+        <input type="file" name="proud_area" accept="image/*" class="block mt-2">
+      </div>
+
+      <!-- Need Work Upload -->
+      <div class="p-4 bg-yellow-50 rounded-lg mb-4">
+        <label class="block font-semibold text-yellow-800 mb-1">Upload images of the sections that need work:</label>
+        <input type="file" name="need_work_area" accept="image/*" class="block mt-2">
+      </div>
+
+      <!-- Back Area Upload -->
+      <div class="p-4 bg-red-50 rounded-lg mb-4">
+        <label class="block font-semibold text-red-800 mb-1">Upload images of the back area:</label>
+        <input type="file" name="back_area" accept="image/*" class="block mt-2">
+      </div>
+
+      <!-- EMPTY SPOTS -->
+      <div class="p-4 bg-blue-100 rounded-lg">
+        <h3 class="text-lg font-semibold text-blue-800 mb-2">Empty Spots Check</h3>
+        <label class="block mb-1">Are there empty spots on the layout?</label>
+        <input type="radio" name="empty_spots" value="yes" class="mr-1"> Yes
+        <input type="radio" name="empty_spots" value="no" checked class="ml-4 mr-1"> No<br><br>
+
+        <input type="number" name="metres" value="0" class="w-32 border border-blue-300 rounded px-2 py-1 mb-2" placeholder="Metres affected"><br>
+        <input type="text" name="family" value="" class="w-full border border-blue-300 rounded px-2 py-1 mb-2" placeholder="Major family"><br>
+        <input type="text" name="additional_information" value="" class="w-full border border-blue-300 rounded px-2 py-1 mb-2" placeholder="Additional info/suggestion"><br>
+        <label>Empty Spots Images:</label>
+        <input type="file" name="empty_spots_images" multiple>
+      </div>
+
+      <div class="text-center">
+        <input type="submit" value="Submit" class="bg-blue-700 text-white font-bold px-6 py-2 rounded hover:bg-blue-800 cursor-pointer">
+      </div>
+
+    </form>
+  </div>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const form = document.querySelector("form");
+
+    // Map actual numeric inputs to their checkboxes
+    const taskMap = [
+        { input: 'delivery_boxes', checkbox: '1' },   // deliveries
+        { input: 'clean_percentage', checkbox: '2' }, // store clean
+        { input: 'fire_exits', checkbox: '3' },       // fire exits
+        { input: 'label_percentage', checkbox: '4' }, // labels
+        { input: 'stock_count', checkbox: '8' },      // stock controls
+        { input: 'freshness', checkbox: '9' }         // freshness
+    ];
+
+    function updateCheckbox(inputEl, checkboxEl) {
+        const val = parseInt(inputEl.value) || 0;
+
+        if (val > 0 && inputEl.name !== "clean_percentage" && inputEl.name !== "label_percentage" && inputEl.name !== "freshness") {
+            // For count-based tasks: >0 means checkbox disabled
+            checkboxEl.checked = false;
+            checkboxEl.disabled = true;
+        } else if (
+            (inputEl.name === "clean_percentage" && val < 100) ||
+            (inputEl.name === "label_percentage" && val < 100) ||
+            (inputEl.name === "freshness" && val < 10)
+        ) {
+            // For percentage/freshness tasks: less than full value → disable checkbox
+            checkboxEl.checked = false;
+            checkboxEl.disabled = true;
+        } else {
+            // Default/acceptable values → checkbox must be ticked
+            checkboxEl.disabled = false;
+        }
+    }
+
+    // Attach listeners
+    taskMap.forEach(({ input, checkbox }) => {
+        const inputEl = document.querySelector(`input[name="${input}"]`);
+        const checkboxEl = document.querySelector(`input[name="tasks"][value="${checkbox}"]`);
+
+        if (!inputEl || !checkboxEl) return;
+
+        inputEl.addEventListener("input", () => updateCheckbox(inputEl, checkboxEl));
+        updateCheckbox(inputEl, checkboxEl); // run once on load
+    });
+
+    // On form submit → enforce validation
+    form.addEventListener("submit", function(e) {
+        let valid = true;
+
+        taskMap.forEach(({ input, checkbox }) => {
+            const inputEl = document.querySelector(`input[name="${input}"]`);
+            const checkboxEl = document.querySelector(`input[name="tasks"][value="${checkbox}"]`);
+            if (!inputEl || !checkboxEl) return;
+
+            const val = parseInt(inputEl.value) || 0;
+
+            if (
+                (inputEl.name === "delivery_boxes" && val === 0 && !checkboxEl.checked) ||
+                (inputEl.name === "fire_exits" && val === 0 && !checkboxEl.checked) ||
+                (inputEl.name === "stock_count" && val === 0 && !checkboxEl.checked) ||
+                (inputEl.name === "clean_percentage" && val === 100 && !checkboxEl.checked) ||
+                (inputEl.name === "label_percentage" && val === 100 && !checkboxEl.checked) ||
+                (inputEl.name === "freshness" && val === 10 && !checkboxEl.checked)
+            ) {
+                alert(`Please check the task for "${input.replace("_", " ")}" since values are OK.`);
+                checkboxEl.focus();
+                valid = false;
+            }
+        });
+
+        if (!valid) e.preventDefault();
+    });
+});
+</script>
+
+</body>
+</html>
+
+
