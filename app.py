@@ -83,7 +83,7 @@ def checklist():
         opening_member = request.form.get("opening_member", "N/A")
         closing_member = request.form.get("closing_member", "N/A")
         completed = request.form.getlist("tasks")
-
+        store = request.form.get('store')
         # --- Determine pending tasks ---
         pending = []
         boxes = int(request.form.get("delivery_boxes") or 0)
@@ -132,33 +132,48 @@ def checklist():
         assigned = []
         overload = []
 
+        team_workload = {"Opening": 0, "Closing": 0}
+        assigned = []
+        overload = []
+
         for t in pending:
             weight = calculate_task_weight(t, request.form)
-            teams_to_assign = ["Opening", "Closing"]
-            task_assigned = False
-            for team in teams_to_assign:
-                if not team_exceeded[team]:
-                    if team_workload[team] + weight <= MAX_WORK:
-                        assigned.append((t, team))
-                        team_workload[team] += weight
-                        task_assigned = True
-                        break
+
+            # First, try to allocate to Opening
+            if team_workload["Opening"] + weight <= MAX_WORK:
+                assigned.append((t, "Opening", weight))
+                team_workload["Opening"] += weight
+            else:
+                # Allocate remaining weight to Opening (max till MAX_WORK)
+                remaining_opening = max(0, MAX_WORK - team_workload["Opening"])
+                if remaining_opening > 0:
+                    assigned.append((t, "Opening", remaining_opening))
+                    team_workload["Opening"] += remaining_opening
+
+                # Allocate rest to Closing before moving to next task
+                remaining_weight = weight - remaining_opening
+                if remaining_weight > 0:
+                    if team_workload["Closing"] + remaining_weight <= MAX_WORK:
+                        assigned.append((t, "Closing", remaining_weight))
+                        team_workload["Closing"] += remaining_weight
                     else:
-                        assigned.append((t, team))
-                        team_workload[team] += weight
-                        team_exceeded[team] = True
-                        task_assigned = True
-                        break
-            if not task_assigned:
-                overload.append((t, teams_to_assign[0]))
+                        # Closing also exceeds MAX_WORK → overload
+                        remaining_for_closing = max(0, MAX_WORK - team_workload["Closing"])
+                        if remaining_for_closing > 0:
+                            assigned.append((t, "Closing", remaining_for_closing))
+                            team_workload["Closing"] += remaining_for_closing
+                        # Any leftover goes to overload
+                        leftover = remaining_weight - remaining_for_closing
+                        if leftover > 0:
+                            overload.append((t, leftover))
 
         # --- Build email body ---
-        body = f"Store Summary plus priority for {date.today() + timedelta(days=1)}:\n\n"
+        body = f"Store Summary plus priority for {store} {date.today() + timedelta(days=1)}:\n\n"
         body += f"Opening Team: {opening_member}\nClosing Team: {closing_member}\n\n"
 
         if assigned:
             body += "Assigned Tasks:\n"
-            for i, (t, team) in enumerate(assigned, 1):
+            for i, (t, team, weight) in enumerate(assigned, 1):
                 extra_info = ""
                 if t["id"] == 1 and boxes:
                     extra_info = f" (Boxes pending: {boxes})"
@@ -170,7 +185,9 @@ def checklist():
                     extra_info = f" (Stock Control: {stock_count})"
                 elif t["id"] == 9 and freshness < 10:
                     extra_info = f" (Freshness: {freshness})"
-                body += f"{i}. [{t['priority']}] {t['to-do']} → {team} Team{extra_info}\n"
+                
+                body += f"{i}. [{t['priority']}] {t['to-do']} → {team} Team (Weight: {weight}){extra_info}\n"
+
 
         if overload:
             body += "\n⚠️ Overload Tasks (Manager attention needed):\n"
@@ -191,12 +208,12 @@ def checklist():
 
         # --- Send daily tasks email ---
         send_email(
-            subject="Daily Store Operations – Pending Tasks",
+            subject=f"Daily Store Operations – Pending Tasks {store}",
             body_text=body,
+            # later we will change the recievers to f"{store}.team@decathlon.net
             receivers=["paras.agnihotri05@gmail.com"],
             images=checklist_images
         )
-
 
         # --- Empty spots report ---
         if request.form.get("empty_spots") == "yes":
@@ -219,7 +236,7 @@ def checklist():
                     empty_spots_images.append((file.filename, filepath))
 
             send_email(
-                subject="Empty Spots Report Townhall",
+                subject=f"Empty Spots Report {store}",
                 body_text=supply_body,
                 receivers=["paras.agnihotri1109@gmail.com"],
                 images=empty_spots_images
@@ -254,6 +271,11 @@ def send_email(subject, body_text, receivers, images=None):
     html_body = "<br>".join(body_text.split("\n"))
 
     if images:
+        field_titles = {
+            "proud_area": "Area(s) we are proud of",
+            "need_work_area": "Area(s) that need work",
+            "back_area": "Back Area"
+        }
         for field, filepath in images:
             if not os.path.exists(filepath):
                 print("File not found:", filepath)
@@ -270,8 +292,10 @@ def send_email(subject, body_text, receivers, images=None):
             img.add_header("Content-Disposition", "inline", filename=os.path.basename(filepath))
             msg.attach(img)
 
-            html_body += f'<br><b>{field.replace("_"," ").title()}:</b><br>'
+            title = field_titles.get(field, field.replace("_", " ").title())
+            html_body += f'<br><b>{title}:</b><br>'
             html_body += f'<img src="cid:{cid}" style="max-width:600px;">'
+
 
     alt.attach(MIMEText(html_body, "html"))
 
@@ -281,12 +305,12 @@ def send_email(subject, body_text, receivers, images=None):
         print("Email sent successfully to:", receivers)
 
 
-    
 
 @app.route("/done")
 def done():
-    return "✅ Checklist submitted! An email has been sent."
+    return render_template("done.html")
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
+
     

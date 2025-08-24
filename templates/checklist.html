@@ -16,6 +16,19 @@
     <h1 class="text-2xl font-bold text-blue-900 mb-4">Daily Store Operations</h1>
 
     <form method="POST" enctype="multipart/form-data" class="space-y-6">
+      <div class="mb-4">
+      <label class="block font-medium text-blue-700 mb-1">Select Store:</label>
+      <select name="store" class="w-full border border-blue-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400" required>
+        <option value="">-- Select Store --</option>
+        <option value="Airport">Airport</option>
+        <option value="Bondi">Bondi</option>
+        <option value="Cronulla">Cronulla</option>
+        <option value="Manly">Manly</option>
+        <option value="Townhall">Townhall</option>
+        <option value="Wynyard">Wynyard</option>
+      </select>
+    </div>
+
       <!-- Team Members -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
@@ -84,7 +97,7 @@
 
       <!-- EMPTY SPOTS -->
       <div class="p-4 bg-blue-100 rounded-lg">
-        <h3 class="text-lg font-semibold text-blue-800 mb-2">Empty Spots Check</h3>
+        <h3 class="text-lg font-semibold text-blue-800 mb-2">Gaps in layout check</h3>
         <label class="block mb-1">Are there empty spots on the layout?</label>
         <input type="radio" name="empty_spots" value="yes" class="mr-1"> Yes
         <input type="radio" name="empty_spots" value="no" checked class="ml-4 mr-1"> No<br><br>

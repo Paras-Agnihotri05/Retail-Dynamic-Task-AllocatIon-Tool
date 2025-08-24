@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Checklist Submitted!</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      overflow-x: hidden;
+    }
+    .confetti {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      background-color: #f59e0b; /* amber */
+      opacity: 0.8;
+      z-index: 9999;
+      pointer-events: none;
+      border-radius: 50%;
+      animation: fall 3s linear forwards;
+    }
+
+    @keyframes fall {
+      0% { transform: translateY(0) rotate(0deg); }
+      100% { transform: translateY(100vh) rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="bg-blue-50 flex flex-col items-center justify-center min-h-screen text-center p-4">
+
+  <!-- Decathlon Logo -->
+  <div class="mb-6">
+    <img src="{{ url_for('static', filename='Decathlon_Logo.png') }}" alt="Decathlon Logo" width="300">
+  </div>
+
+  <!-- Celebration Message -->
+  <h1 class="text-3xl md:text-4xl font-bold text-blue-900 mb-4">✅ Checklist Submitted!</h1>
+  <p class="text-lg md:text-xl text-blue-800 mb-6"> Great job! The checklist has been sent successfully.</p>
+  <a href="{{ url_for('checklist') }}" class="bg-blue-700 text-white px-6 py-3 rounded-lg hover:bg-blue-800 transition">Submit Another Checklist</a>
+
+  <script>
+    // Confetti generator
+    const colors = ['#f43f5e','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ec4899'];
+
+    function createConfetti() {
+      const confetti = document.createElement('div');
+      confetti.classList.add('confetti');
+      confetti.style.left = Math.random() * window.innerWidth + 'px';
+      confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      confetti.style.animationDuration = 2 + Math.random() * 2 + 's';
+      confetti.style.width = 5 + Math.random() * 10 + 'px';
+      confetti.style.height = confetti.style.width;
+      document.body.appendChild(confetti);
+
+      // Remove after animation
+      setTimeout(() => confetti.remove(), 4000);
+    }
+
+    // Generate multiple confetti pieces
+    for(let i=0; i<100; i++){
+      setTimeout(createConfetti, i*50);
+    }
+  </script>
+
+</body>
+</html>
