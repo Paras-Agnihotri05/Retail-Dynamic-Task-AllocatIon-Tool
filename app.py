@@ -1,3 +1,4 @@
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 import os
 from flask import Flask, render_template, request, redirect, url_for
@@ -7,9 +8,14 @@ from datetime import date, timedelta
 from email.utils import make_msgid
 import mimetypes
 from email.mime.image import MIMEImage
+from email import encoders
+from PIL import Image
+
 
 app = Flask(__name__)
 MAX_WORK = 50
+MAX_WIDTH = 1280            # Resize large images to this width
+MAX_ATTACH_SIZE = 2 * 1024 * 1024  # 2 MB max per attachment
 
 # Define tasks
 TASKS = [
@@ -247,63 +253,76 @@ def checklist():
 
     return render_template("checklist.html", tasks=TASKS)
 
+def compress_image(filepath):
+    """Resize + compress image, overwrite the file if smaller."""
+    try:
+        img = Image.open(filepath)
+        img_format = img.format
 
-def send_email(subject, body_text, receivers, images=None):
-    import os, mimetypes, smtplib
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-    from email.mime.image import MIMEImage
-    from email.utils import make_msgid
+        # Resize if too wide
+        if img.width > MAX_WIDTH:
+            ratio = MAX_WIDTH / float(img.width)
+            new_height = int(float(img.height) * ratio)
+            img = img.resize((MAX_WIDTH, new_height), Image.Resampling.LANCZOS)
 
+        # Always save compressed JPEG/PNG
+        compressed_path = filepath
+        if img_format.upper() == "JPEG":
+            img.save(compressed_path, "JPEG", optimize=True, quality=70)
+        else:
+            img.save(compressed_path, optimize=True)
+
+        return compressed_path
+    except Exception as e:
+        print("Compression failed for", filepath, ":", e)
+        return filepath
+        
+def send_email(subject, body_text, receivers, images, uploads_url="https://your-app.onrender.com/uploads/"):
     sender_email = "paras.agnihotri@decathlon.com"
+    password = 'eifq ldmh oasc szjf'
 
-    msg = MIMEMultipart("related")
-    msg["Subject"] = subject
+    msg = MIMEMultipart("alternative")
     msg["From"] = sender_email
     msg["To"] = ", ".join(receivers)
+    msg["Subject"] = subject
 
-    alt = MIMEMultipart("alternative")
-    msg.attach(alt)
+    # Attach plain text
+    msg.attach(MIMEText(body_text, "plain"))
 
-    alt.attach(MIMEText(body_text, "plain"))
+    # Compress + attach images
+    for _, filepath in images:
+        filepath = compress_image(filepath)
 
-    # Start HTML
-    html_body = "<br>".join(body_text.split("\n"))
+        try:
+            file_size = os.path.getsize(filepath)
+        except FileNotFoundError:
+            continue
 
-    if images:
-        field_titles = {
-            "proud_area": "Area(s) we are proud of",
-            "need_work_area": "Area(s) that need work",
-            "back_area": "Back Area"
-        }
-        for field, filepath in images:
-            if not os.path.exists(filepath):
-                print("File not found:", filepath)
-                continue
+        if file_size <= MAX_ATTACH_SIZE:
+            ctype, encoding = mimetypes.guess_type(filepath)
+            if ctype is None or encoding is not None:
+                ctype = "application/octet-stream"
+            maintype, subtype = ctype.split("/", 1)
+
             with open(filepath, "rb") as f:
-                img_data = f.read()
-            mime_type, _ = mimetypes.guess_type(filepath)
-            if not mime_type or not mime_type.startswith("image"):
-                continue
-            subtype = mime_type.split("/")[1]
-            img = MIMEImage(img_data, _subtype=subtype)
-            cid = make_msgid(domain="decathlon.com")[1:-1]
-            img.add_header("Content-ID", f"<{cid}>")
-            img.add_header("Content-Disposition", "inline", filename=os.path.basename(filepath))
-            msg.attach(img)
+                part = MIMEBase(maintype, subtype)
+                part.set_payload(f.read())
+                encoders.encode_base64(part)
 
-            title = field_titles.get(field, field.replace("_", " ").title())
-            html_body += f'<br><b>{title}:</b><br>'
-            html_body += f'<img src="cid:{cid}" style="max-width:600px;">'
+            part.add_header("Content-Disposition", "attachment", filename=os.path.basename(filepath))
+            msg.attach(part)
+        else:
+            link = f'{uploads_url}{os.path.basename(filepath)}'
+            html_link = f'\nLarge file: {link}\n'
+            msg.attach(MIMEText(html_link, "plain"))
 
-
-    alt.attach(MIMEText(html_body, "html"))
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(sender_email, "eifq ldmh oasc szjf")
-        server.send_message(msg)
-        print("Email sent successfully to:", receivers)
-
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, password)
+            server.sendmail(sender_email, receivers, msg.as_string())
+        print("✅ Email sent successfully!")
+    except Exception as e:
+        print("❌ Email send failed:", e)
 
 
 @app.route("/done")
