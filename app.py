@@ -88,10 +88,10 @@ def checklist():
     if request.method == "POST":
         opening_member = request.form.get("opening_member", "N/A")
         closing_member = request.form.get("closing_member", "N/A")
-        completed = request.form.getlist("tasks")
         store = request.form.get('store')
-        # --- Determine pending tasks ---
-        pending = []
+        
+        # --- Determine completed & pending tasks ---
+        completed = request.form.getlist("tasks")
         boxes = int(request.form.get("delivery_boxes") or 0)
         clean_pct = float(request.form.get("clean_percentage") or 100)
         label_pct = float(request.form.get("label_percentage") or 100)
@@ -99,18 +99,15 @@ def checklist():
         freshness = float(request.form.get("freshness") or 10)
         fire_exits = int(request.form.get("fire_exits") or 0)
 
-        completed = request.form.getlist("tasks")
-        # --- Enforce boxes logic ---
-        # If default 0 and checkbox not ticked, tick it
+        # Boxes logic
         if boxes == 0 and "1" not in completed:
             completed.append("1")
-        # If boxes > 0, ensure checkbox is not ticked
         elif boxes > 0 and "1" in completed:
             completed.remove("1")
 
+        pending = []
         for t in TASKS:
             task_done = str(t["id"]) in completed
-
             if t["id"] == 1 and boxes > 0:
                 task_done = False
             elif t["id"] == 2 and clean_pct < 100:
@@ -129,56 +126,37 @@ def checklist():
             if not task_done:
                 pending.append(t)
 
-        # --- Sort pending tasks ---
+        # Sort pending tasks
         pending.sort(key=lambda t: (PRIORITY_RANK[t["priority"]], PRIORITY_ORDER.index(t["task"])))
 
         # --- Assign workload ---
         team_workload = {"Opening": 0, "Closing": 0}
-        team_exceeded = {"Opening": False, "Closing": False}
-        assigned = []
-        overload = []
-
-        team_workload = {"Opening": 0, "Closing": 0}
-        assigned = []
-        overload = []
+        assigned, overload = [], []
 
         for t in pending:
             weight = calculate_task_weight(t, request.form)
-
-            # First, try to allocate to Opening
-            if team_workload["Opening"] + weight <= MAX_WORK:
-                assigned.append((t, "Opening", weight))
-                team_workload["Opening"] += weight
-            else:
-                # Allocate remaining weight to Opening (max till MAX_WORK)
-                remaining_opening = max(0, MAX_WORK - team_workload["Opening"])
-                if remaining_opening > 0:
-                    assigned.append((t, "Opening", remaining_opening))
-                    team_workload["Opening"] += remaining_opening
-
-                # Allocate rest to Closing before moving to next task
-                remaining_weight = weight - remaining_opening
-                if remaining_weight > 0:
-                    if team_workload["Closing"] + remaining_weight <= MAX_WORK:
-                        assigned.append((t, "Closing", remaining_weight))
-                        team_workload["Closing"] += remaining_weight
-                    else:
-                        # Closing also exceeds MAX_WORK → overload
-                        remaining_for_closing = max(0, MAX_WORK - team_workload["Closing"])
-                        if remaining_for_closing > 0:
-                            assigned.append((t, "Closing", remaining_for_closing))
-                            team_workload["Closing"] += remaining_for_closing
-                        # Any leftover goes to overload
-                        leftover = remaining_weight - remaining_for_closing
-                        if leftover > 0:
-                            overload.append((t, leftover))
+            remaining = weight
+            for team in ["Opening", "Closing"]:
+                can_assign = min(MAX_WORK - team_workload[team], remaining)
+                if can_assign > 0:
+                    assigned.append((t, team, can_assign))
+                    team_workload[team] += can_assign
+                    remaining -= can_assign
+                if remaining <= 0:
+                    break
+            if remaining > 0:
+                overload.append((t, remaining))
 
         # --- Build email body ---
-        body = f"Store Summary plus priority for {store} {date.today() + timedelta(days=1)}:\n\n"
-        body += f"Opening Team: {opening_member}\nClosing Team: {closing_member}\n\n"
+        body_lines = [
+            f"Store Summary plus priority for {store} {date.today() + timedelta(days=1)}:",
+            f"Opening Team: {opening_member}",
+            f"Closing Team: {closing_member}",
+            ""
+        ]
 
         if assigned:
-            body += "Assigned Tasks:\n"
+            body_lines.append("Assigned Tasks:")
             for i, (t, team, weight) in enumerate(assigned, 1):
                 extra_info = ""
                 if t["id"] == 1 and boxes:
@@ -191,36 +169,34 @@ def checklist():
                     extra_info = f" (Stock Control: {stock_count})"
                 elif t["id"] == 9 and freshness < 10:
                     extra_info = f" (Freshness: {freshness})"
-                
-                body += f"{i}. [{t['priority']}] {t['to-do']} → {team} Team (Weight: {weight}){extra_info}\n"
 
+                body_lines.append(f"{i}. [{t['priority']}] {t['to-do']} → {team} Team (Weight: {weight}){extra_info}")
 
         if overload:
-            body += "\n⚠️ Overload Tasks (Manager attention needed):\n"
-            for t, team in overload:
-                body += f"- [{t['priority']}] {t['to-do']}\n"
+            body_lines.append("\n⚠️ Overload Tasks (Manager attention needed):")
+            for t, remaining in overload:
+                body_lines.append(f"- [{t['priority']}] {t['to-do']} (Extra Weight: {remaining})")
 
         if not assigned and not overload:
-            body = f"✅ All tasks completed for {date.today()}!"
+            body_lines = [f"✅ All tasks completed for {date.today()}!"]
+
+        body_text = "\n".join(body_lines)
 
         # --- Collect checklist images ---
         checklist_images = {"proud_area": [], "need_work_area": [], "back_area": []}
-
-        for field in ["proud_area", "need_work_area", "back_area"]:
-            for file in request.files.getlist(field):  # <-- get all files
+        for field in checklist_images.keys():
+            for file in request.files.getlist(field):
                 if file and file.filename:
                     filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
                     file.save(filepath)
                     checklist_images[field].append(filepath)
 
-
         # --- Send daily tasks email ---
         send_email(
             subject=f"Daily Store Operations – Pending Tasks {store}",
-            body_text=body,
-            # later we will change the recievers to f"{store}.team@decathlon.net
+            body_text=body_text,
             receivers=["paras.agnihotri05@gmail.com"],
-            images=checklist_images
+            images_dict=checklist_images
         )
 
         # --- Empty spots report ---
@@ -235,25 +211,80 @@ def checklist():
                 f"- Additional information/suggestions from team mate: {additional_info}\n"
             )
 
-            # Collect empty spots images
             empty_spots_images = []
             for file in request.files.getlist("empty_spots_images"):
                 if file and file.filename:
                     filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
                     file.save(filepath)
-                    empty_spots_images.append((file.filename, filepath))
+                    empty_spots_images.append(filepath)
 
             send_email(
                 subject=f"Empty Spots Report {store}",
                 body_text=supply_body,
                 receivers=["paras.agnihotri1109@gmail.com"],
-                images=empty_spots_images
+                images_dict={"empty_spots": empty_spots_images}
             )
-
 
         return redirect(url_for("done"))
 
     return render_template("checklist.html", tasks=TASKS)
+
+
+def send_email(subject, body_text, receivers, images_dict, uploads_url="https://your-app.onrender.com/uploads/"):
+    sender_email = "paras.agnihotri@decathlon.com"
+    password = 'eifq ldmh oasc szjf'
+
+    msg = MIMEMultipart("related")
+    msg["From"] = sender_email
+    msg["To"] = ", ".join(receivers)
+    msg["Subject"] = subject
+
+    # Alternative part for plain + HTML
+    alternative = MIMEMultipart("alternative")
+    msg.attach(alternative)
+    alternative.attach(MIMEText(body_text, "plain"))
+
+    # HTML body
+    html_body = "<div style='font-family: Arial, sans-serif; font-size:14px;'>"
+    for line in body_text.splitlines():
+        html_body += f"<p>{line}</p>"
+    html_body += "</div>"
+
+    # Attach images per section
+    for section, filepaths in images_dict.items():
+        if filepaths:
+            section_title = {
+                "proud_area": "Area(s) we are proud of:",
+                "need_work_area": "Area(s) that need work:",
+                "back_area": "Back Area:",
+                "empty_spots": "Empty Spots Images:"
+            }.get(section, section)
+            html_body += f"<h3>{section_title}</h3>"
+
+            for filepath in filepaths:
+                filepath = compress_image(filepath)
+                try:
+                    with open(filepath, "rb") as f:
+                        img = MIMEImage(f.read())
+                        cid = make_msgid(domain="example.com")[1:-1]
+                        img.add_header("Content-ID", f"<{cid}>")
+                        img.add_header("Content-Disposition", "inline", filename=os.path.basename(filepath))
+                        msg.attach(img)
+                        html_body += f'<img src="cid:{cid}" style="max-width:600px;"><br>'
+                except Exception as e:
+                    print("Failed to attach image", filepath, e)
+
+    alternative.attach(MIMEText(html_body, "html"))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, password)
+            server.sendmail(sender_email, receivers, msg.as_string())
+        print("✅ Email sent successfully!")
+    except Exception as e:
+        print("❌ Email send failed:", e)
+
+
 
 def compress_image(filepath):
     """Resize + compress image, overwrite the file if smaller."""
@@ -278,52 +309,6 @@ def compress_image(filepath):
     except Exception as e:
         print("Compression failed for", filepath, ":", e)
         return filepath
-        
-def send_email(subject, body_text, receivers, images_dict, uploads_url="https://your-app.onrender.com/uploads/"):
-    sender_email = "paras.agnihotri@decathlon.com"
-    password = 'eifq ldmh oasc szjf'
-
-    msg = MIMEMultipart("alternative")
-    msg["From"] = sender_email
-    msg["To"] = ", ".join(receivers)
-    msg["Subject"] = subject
-
-    html_body = f"<pre>{body_text}</pre>"
-
-    # Add sections for images
-    for section, filepaths in images_dict.items():
-        if filepaths:
-            section_title = {
-                "proud_area": "Area(s) we are proud of:",
-                "need_work_area": "Area(s) that need work:",
-                "back_area": "Back Area:"
-            }.get(section, section)
-            html_body += f"<h3>{section_title}</h3>"
-
-            for filepath in filepaths:
-                filepath = compress_image(filepath)
-                try:
-                    with open(filepath, "rb") as f:
-                        img = MIMEImage(f.read())
-                        cid = make_msgid(domain="example.com")[1:-1]  # strip < >
-                        img.add_header("Content-ID", f"<{cid}>")
-                        img.add_header("Content-Disposition", "inline", filename=os.path.basename(filepath))
-                        msg.attach(img)
-                        html_body += f'<br><img src="cid:{cid}" style="max-width:600px;"><br>'
-                except Exception as e:
-                    print("Failed to attach image", filepath, e)
-
-    msg.attach(MIMEText(html_body, "html"))
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(sender_email, password)
-            server.sendmail(sender_email, receivers, msg.as_string())
-        print("✅ Email sent successfully!")
-    except Exception as e:
-        print("❌ Email send failed:", e)
-
-
 
 @app.route("/done")
 def done():
