@@ -230,7 +230,7 @@ def checklist():
     return render_template("checklist.html", tasks=TASKS)
 
 
-def send_email(subject, body_text, receivers, images_dict, uploads_url="https://your-app.onrender.com/uploads/"):
+def send_email(subject, body_text, receivers, images_dict):
     sender_email = "paras.agnihotri@decathlon.com"
     password = 'eifq ldmh oasc szjf'
 
@@ -244,37 +244,44 @@ def send_email(subject, body_text, receivers, images_dict, uploads_url="https://
     msg.attach(alternative)
     alternative.attach(MIMEText(body_text, "plain"))
 
-    # HTML body
+    # Start HTML body
     html_body = "<div style='font-family: Arial, sans-serif; font-size:14px;'>"
     for line in body_text.splitlines():
         html_body += f"<p>{line}</p>"
-    html_body += "</div>"
 
-    # Attach images per section
+    # Collect all image CIDs to attach only once
+    img_cids = {}
+
     for section, filepaths in images_dict.items():
-        if filepaths:
-            section_title = {
-                "proud_area": "Area(s) we are proud of:",
-                "need_work_area": "Area(s) that need work:",
-                "back_area": "Back Area:",
-                "empty_spots": "Empty Spots Images:"
-            }.get(section, section)
-            html_body += f"<h3>{section_title}</h3>"
+        if not filepaths:
+            continue
+        section_title = {
+            "proud_area": "Area(s) we are proud of:",
+            "need_work_area": "Area(s) that need work:",
+            "back_area": "Back Area:",
+            "empty_spots": "Empty Spots Images:"
+        }.get(section, section)
+        html_body += f"<h3>{section_title}</h3>"
 
-            for filepath in filepaths:
-                filepath = compress_image(filepath)
-                try:
-                    with open(filepath, "rb") as f:
-                        img = MIMEImage(f.read())
-                        cid = make_msgid(domain="example.com")[1:-1]
-                        img.add_header("Content-ID", f"<{cid}>")
-                        img.add_header("Content-Disposition", "inline", filename=os.path.basename(filepath))
-                        msg.attach(img)
-                        html_body += f'<img src="cid:{cid}" style="max-width:600px;"><br>'
-                except Exception as e:
-                    print("Failed to attach image", filepath, e)
+        for filepath in filepaths:
+            filepath = compress_image(filepath)
+            cid = make_msgid(domain="example.com")[1:-1]
+            img_cids[filepath] = cid
+            html_body += f'<img src="cid:{cid}" style="max-width:600px;"><br>'
 
+    html_body += "</div>"
     alternative.attach(MIMEText(html_body, "html"))
+
+    # Attach images once
+    for filepath, cid in img_cids.items():
+        try:
+            with open(filepath, "rb") as f:
+                img = MIMEImage(f.read())
+                img.add_header("Content-ID", f"<{cid}>")
+                img.add_header("Content-Disposition", "inline", filename=os.path.basename(filepath))
+                msg.attach(img)
+        except Exception as e:
+            print("Failed to attach image", filepath, e)
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
@@ -283,7 +290,6 @@ def send_email(subject, body_text, receivers, images_dict, uploads_url="https://
         print("✅ Email sent successfully!")
     except Exception as e:
         print("❌ Email send failed:", e)
-
 
 
 def compress_image(filepath):
