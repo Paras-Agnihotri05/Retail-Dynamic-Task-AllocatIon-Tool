@@ -204,13 +204,15 @@ def checklist():
             body = f"✅ All tasks completed for {date.today()}!"
 
         # --- Collect checklist images ---
-        checklist_images = []
+        checklist_images = {"proud_area": [], "need_work_area": [], "back_area": []}
+
         for field in ["proud_area", "need_work_area", "back_area"]:
-            file = request.files.get(field)
-            if file and file.filename:
-                filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
-                file.save(filepath)
-                checklist_images.append((field, filepath))
+            for file in request.files.getlist(field):  # <-- get all files
+                if file and file.filename:
+                    filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
+                    file.save(filepath)
+                    checklist_images[field].append(filepath)
+
 
         # --- Send daily tasks email ---
         send_email(
@@ -277,7 +279,7 @@ def compress_image(filepath):
         print("Compression failed for", filepath, ":", e)
         return filepath
         
-def send_email(subject, body_text, receivers, images, uploads_url="https://your-app.onrender.com/uploads/"):
+def send_email(subject, body_text, receivers, images_dict, uploads_url="https://your-app.onrender.com/uploads/"):
     sender_email = "paras.agnihotri@decathlon.com"
     password = 'eifq ldmh oasc szjf'
 
@@ -286,35 +288,32 @@ def send_email(subject, body_text, receivers, images, uploads_url="https://your-
     msg["To"] = ", ".join(receivers)
     msg["Subject"] = subject
 
-    # Attach plain text
-    msg.attach(MIMEText(body_text, "plain"))
+    html_body = f"<pre>{body_text}</pre>"
 
-    # Compress + attach images
-    for _, filepath in images:
-        filepath = compress_image(filepath)
+    # Add sections for images
+    for section, filepaths in images_dict.items():
+        if filepaths:
+            section_title = {
+                "proud_area": "Area(s) we are proud of:",
+                "need_work_area": "Area(s) that need work:",
+                "back_area": "Back Area:"
+            }.get(section, section)
+            html_body += f"<h3>{section_title}</h3>"
 
-        try:
-            file_size = os.path.getsize(filepath)
-        except FileNotFoundError:
-            continue
+            for filepath in filepaths:
+                filepath = compress_image(filepath)
+                try:
+                    with open(filepath, "rb") as f:
+                        img = MIMEImage(f.read())
+                        cid = make_msgid(domain="example.com")[1:-1]  # strip < >
+                        img.add_header("Content-ID", f"<{cid}>")
+                        img.add_header("Content-Disposition", "inline", filename=os.path.basename(filepath))
+                        msg.attach(img)
+                        html_body += f'<br><img src="cid:{cid}" style="max-width:600px;"><br>'
+                except Exception as e:
+                    print("Failed to attach image", filepath, e)
 
-        if file_size <= MAX_ATTACH_SIZE:
-            ctype, encoding = mimetypes.guess_type(filepath)
-            if ctype is None or encoding is not None:
-                ctype = "application/octet-stream"
-            maintype, subtype = ctype.split("/", 1)
-
-            with open(filepath, "rb") as f:
-                part = MIMEBase(maintype, subtype)
-                part.set_payload(f.read())
-                encoders.encode_base64(part)
-
-            part.add_header("Content-Disposition", "attachment", filename=os.path.basename(filepath))
-            msg.attach(part)
-        else:
-            link = f'{uploads_url}{os.path.basename(filepath)}'
-            html_link = f'\nLarge file: {link}\n'
-            msg.attach(MIMEText(html_link, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
@@ -323,6 +322,7 @@ def send_email(subject, body_text, receivers, images, uploads_url="https://your-
         print("✅ Email sent successfully!")
     except Exception as e:
         print("❌ Email send failed:", e)
+
 
 
 @app.route("/done")
