@@ -58,6 +58,9 @@
         {% if task.id == 1 %}
             <label class="block text-blue-700 text-sm mb-1">If not, number of boxes pending:</label>
             <input type="number" name="delivery_boxes" value="0" class="w-32 border border-blue-300 rounded px-2 py-1">
+
+            <label class="block text-blue-700 text-sm mt-2 mb-1">How many boxes did you receive?</label>
+            <input type="number" name="boxes_received" value="0" class="w-32 border border-blue-300 rounded px-2 py-1">
         {% elif task.id == 2 %}
             <label class="block text-blue-700 text-sm mb-1">If not, percentage of store clean:</label>
             <input type="number" name="clean_percentage" value="100" min="0" max="100" class="w-32 border border-blue-300 rounded px-2 py-1">

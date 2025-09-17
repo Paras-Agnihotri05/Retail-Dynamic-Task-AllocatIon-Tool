@@ -50,6 +50,8 @@ PRIORITY_RANK = {"High": 0, "Medium": 1}
 def calculate_task_weight(task, form):
     if task["id"] == 1:  # Delivery
         boxes = int(form.get("delivery_boxes", 0))
+        boxes_received = request.form.get("boxes_received", "0")
+
         return boxes * 5
     elif task["id"] == 2:  # Store clean
         perc = float(form.get("clean_percentage", 100))
@@ -93,6 +95,7 @@ def checklist():
         # --- Determine completed & pending tasks ---
         completed = request.form.getlist("tasks")
         boxes = int(request.form.get("delivery_boxes") or 0)
+        boxes_received = int(request.form.get("boxes_received") or 0)   # NEW FIELD
         clean_pct = float(request.form.get("clean_percentage") or 100)
         label_pct = float(request.form.get("label_percentage") or 100)
         stock_count = int(request.form.get("stock_count") or 0)
@@ -160,7 +163,7 @@ def checklist():
             for i, (t, team, weight) in enumerate(assigned, 1):
                 extra_info = ""
                 if t["id"] == 1 and boxes:
-                    extra_info = f" (Boxes pending: {boxes})"
+                    extra_info = f" (Boxes pending: {boxes}, Boxes received: {boxes_received})"  # UPDATED
                 elif t["id"] == 2 and clean_pct < 100:
                     extra_info = f" (Cleaned: {clean_pct}%)"
                 elif t["id"] == 4 and label_pct < 100:
@@ -321,6 +324,6 @@ def done():
     return render_template("done.html")
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 3000)), debug=True)
 
     
