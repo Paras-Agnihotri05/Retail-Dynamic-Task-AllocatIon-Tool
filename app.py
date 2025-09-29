@@ -11,7 +11,10 @@ from email.mime.image import MIMEImage
 from email import encoders
 from PIL import Image
 
-
+manager_1_stores = ["Bondi", "Manly", "Cronulla"]
+manager_2_stores = ["Townhall", "Wynyard", "Airport"]
+manager_1 = "sophie.windenberger"
+manager_2 = "kinjal.mehta"
 app = Flask(__name__)
 MAX_WORK = 50
 MAX_WIDTH = 1280            # Resize large images to this width
@@ -194,11 +197,17 @@ def checklist():
                     file.save(filepath)
                     checklist_images[field].append(filepath)
 
+        # --- Determine Manager ---
+        if (store in manager_1_stores):
+             manager = manager_1
+        elif store in manager_2_stores:
+            manager = manager_2
+
         # --- Send daily tasks email ---
         send_email(
             subject=f"Daily Store Operations – Pending Tasks {store}",
             body_text=body_text,
-            receivers=[f"{store}.captain@decathlon.com", "kinjal.mehta@decathlon.com"],
+            receivers=[f"{store}.captain@decathlon.com", f"{manager}@decathlon.com"],
             images_dict=checklist_images
         )
 
