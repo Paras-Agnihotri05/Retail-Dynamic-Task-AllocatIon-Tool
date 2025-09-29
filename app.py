@@ -224,7 +224,7 @@ def checklist():
             send_email(
                 subject=f"Empty Spots Report {store}",
                 body_text=supply_body,
-                receivers=[f"{store}.captain@decathlon.com", "kinjal.mehta@decathlon.com"],
+                receivers=[f"{store}.captain@decathlon.com", "kinjal.mehta@decathlon.com", "sophie.windenberger@decathlon.com"],
                 images_dict={"empty_spots": empty_spots_images}
             )
 
