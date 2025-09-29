@@ -173,7 +173,7 @@ def checklist():
                 elif t["id"] == 9 and freshness < 10:
                     extra_info = f" (Freshness: {freshness})"
 
-                body_lines.append(f"{i}. [{t['priority']}] {t['to-do']} → {team} Team (Weight: {weight}){extra_info}")
+                body_lines.append(f"{i}. [{t['priority']}] {t['to-do']} → {team} Team {extra_info}")
 
         if overload:
             body_lines.append("\n⚠️ Overload Tasks (Manager attention needed):")
@@ -198,7 +198,7 @@ def checklist():
         send_email(
             subject=f"Daily Store Operations – Pending Tasks {store}",
             body_text=body_text,
-            receivers=["paras.agnihotri05@gmail.com"],
+            receivers=[f"{store}.captain@decathlon.com", "kinjal.mehta@decathlon.com"],
             images_dict=checklist_images
         )
 
@@ -224,7 +224,7 @@ def checklist():
             send_email(
                 subject=f"Empty Spots Report {store}",
                 body_text=supply_body,
-                receivers=["paras.agnihotri1109@gmail.com"],
+                receivers=[f"{store}.captain@decathlon.com", "kinjal.mehta@decathlon.com"],
                 images_dict={"empty_spots": empty_spots_images}
             )
 
