@@ -207,7 +207,7 @@ def checklist():
         send_email(
             subject=f"Daily Store Operations – Pending Tasks {store}",
             body_text=body_text,
-            receivers=[f"{store}.captain@decathlon.com", f"{manager}@decathlon.com"],
+            receivers=[f"99lavisha@gmail.com"],
             images_dict=checklist_images
         )
 
@@ -233,7 +233,7 @@ def checklist():
             send_email(
                 subject=f"Empty Spots Report {store}",
                 body_text=supply_body,
-                receivers=[f"{store}.captain@decathlon.com", "kinjal.mehta@decathlon.com", "sophie.windenberger@decathlon.com"],
+                receivers=[f"99lavisha@gmail.com"],
                 images_dict={"empty_spots": empty_spots_images}
             )
 
