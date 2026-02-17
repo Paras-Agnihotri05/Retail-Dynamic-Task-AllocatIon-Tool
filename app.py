@@ -207,7 +207,7 @@ def checklist():
         send_email(
             subject=f"Daily Store Operations – Pending Tasks {store}",
             body_text=body_text,
-            receivers=[f"99lavisha@gmail.com"],
+            receivers=[f""],
             images_dict=checklist_images
         )
 
@@ -233,7 +233,7 @@ def checklist():
             send_email(
                 subject=f"Empty Spots Report {store}",
                 body_text=supply_body,
-                receivers=[f"99lavisha@gmail.com"],
+                receivers=[f""],
                 images_dict={"empty_spots": empty_spots_images}
             )
 
@@ -243,8 +243,8 @@ def checklist():
 
 
 def send_email(subject, body_text, receivers, images_dict):
-    sender_email = "paras.agnihotri@decathlon.com"
-    password = 'eifq ldmh oasc szjf'
+    sender_email = ""
+    password = ''
 
     msg = MIMEMultipart("related")
     msg["From"] = sender_email
@@ -299,9 +299,9 @@ def send_email(subject, body_text, receivers, images_dict):
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(sender_email, password)
             server.sendmail(sender_email, receivers, msg.as_string())
-        print("✅ Email sent successfully!")
+        print("Email sent successfully!")
     except Exception as e:
-        print("❌ Email send failed:", e)
+        print("Email send failed:", e)
 
 
 def compress_image(filepath):
